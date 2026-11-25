@@ -1,3 +1,10 @@
+def init_db():
+    conn = sqlite3.connect("calls.db")
+    try:
+        conn.execute("CREATE TABLE IF NOT EXISTS calls (id INTEGER PRIMARY KEY AUTOINCREMENT, file_name TEXT, status TEXT, analysis TEXT)")
+        conn.commit()
+    finally:
+        conn.close()
 """SQLite = Agent 1 ka 'status register'. Har call ka status yahan track hota hai."""
 import json
 import sqlite3
