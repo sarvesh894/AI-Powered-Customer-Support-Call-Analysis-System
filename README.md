@@ -21,10 +21,10 @@ An end-to-end Python and Streamlit prototype that monitors customer support call
 - Detailed design considerations (duplicate control, short/unclear audio routing, anti-hallucination verification, PII protection, and future roadmap) are documented in [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## 5. Deploy on Streamlit Community Cloud
-1. Push this repository to GitHub and create a Streamlit Community Cloud app using `dashboard.py` as the entry point.
+1. Push this repository to GitHub and create a Streamlit Community Cloud app using `public_demo.py` as the entry point for a public, synthetic-only preview.
 2. Select Python 3.12 in the app's advanced settings.
-3. Add `GEMINI_API_KEY` in the app's **Secrets** settings (do not commit `.env` or `secrets.toml`).
-4. The app uses local SQLite and local folders for its runtime data. On hosted instances, that data may not persist across restarts; use persistent storage before relying on it for production customer call data.
+3. The public demo does not need an API key and has no upload or processing controls. For the full analyzer, deploy `dashboard.py` only in a private, access-controlled environment and add `GEMINI_API_KEY` in the app's **Secrets** settings (never commit `.env` or `secrets.toml`).
+4. The full analyzer uses local SQLite and local folders for runtime data. On hosted instances, that data may not persist across restarts; use persistent storage before relying on it for production customer call data.
 
 ## Project Requirements
 See the [system requirements document](https://github.com/user-attachments/files/35422092/AI-Powered.Customer.Support.Call.Analysis.System.SRS.pdf).
