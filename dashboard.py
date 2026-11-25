@@ -561,4 +561,4 @@ if uploaded_audio is None:
 if gen_clicked and uploaded_audio is not None:
     raw_bytes = uploaded_audio.getvalue()
     INBOX_DIR.mkdir(parents=True, exist_ok=True)
-    saved_path = INBOX_DIR /
+    saved_path = INBOX_DIR / uploaded_audio.name
