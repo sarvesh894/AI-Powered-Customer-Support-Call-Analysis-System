@@ -604,6 +604,7 @@ if up_state:
 st.markdown('</div>', unsafe_allow_html=True)
 
 # 3. KPI Overview
+db.init_db()
 raw_done = db.done_calls() or []
 rows = []
 for c in raw_done:
