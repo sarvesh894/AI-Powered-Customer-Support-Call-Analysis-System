@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+.env
+.env.*
+!.env.example
+.streamlit/secrets.toml
+calls.db
+calls.db-*
+
+/inbox/*
+!/inbox/.gitkeep
+/reports/*
+!/reports/.gitkeep
+/transcripts/*
+!/transcripts/.gitkeep

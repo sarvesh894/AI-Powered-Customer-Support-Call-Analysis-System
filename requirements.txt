@@ -1,0 +1,5 @@
+anthropic
+faster-whisper
+google-genai
+pandas
+streamlit
