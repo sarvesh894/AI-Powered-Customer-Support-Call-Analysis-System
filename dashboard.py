@@ -562,3 +562,233 @@ if gen_clicked and uploaded_audio is not None:
     raw_bytes = uploaded_audio.getvalue()
     INBOX_DIR.mkdir(parents=True, exist_ok=True)
     saved_path = INBOX_DIR / uploaded_audio.name
+    saved_path.write_bytes(raw_bytes)
+    with st.spinner("Generating transcript and call quality report..."):
+        try:
+            tr_text, an_dict = generate_transcript_and_analysis(raw_bytes, uploaded_audio.name, saved_path)
+            st.session_state["uploaded_audio_state"] = {
+                "file_name": uploaded_audio.name,
+                "transcript": tr_text,
+                "analysis": an_dict,
+            }
+            st.success("Transcript & report generated.")
+        except Exception as exc:
+            st.error(f"Transcript generation failed: {type(exc).__name__}: {exc}")
+
+up_state = st.session_state.get("uploaded_audio_state")
+if up_state:
+    det_lang = up_state["analysis"].get("language") or detect_language_label(up_state["transcript"])
+    src_lbl = clean_display_text(up_state["analysis"].get("_source") or "Local Transcript Pipeline")
+    st.markdown(
+        f"**Transcript:** `{html.escape(up_state['file_name'])}` &nbsp;|&nbsp; "
+        f"**Language:** `{html.escape(det_lang)}` &nbsp;|&nbsp; "
+        f"**Engine:** `{html.escape(src_lbl)}`"
+    )
+    edited_tr = st.text_area(
+        "Transcript Editor (edit text and export updated report)",
+        value=up_state["transcript"],
+        height=230,
+        key="uploaded_audio_transcript_box",
+    )
+    recomputed_an = infer_analysis_from_text(edited_tr, up_state["file_name"])
+    merged_an = dict(up_state["analysis"])
+    merged_an["language"] = recomputed_an["language"]
+    merged_an["customer_query"] = recomputed_an["customer_query"]
+    if str(merged_an.get("topic", "")).lower() in ("", "unclear", "general_support"):
+        merged_an["topic"] = recomputed_an["topic"]
+    if str(merged_an.get("sentiment", "")).lower() in ("", "unclear", "neutral"):
+        merged_an["sentiment"] = recomputed_an["sentiment"]
+
+    rp = merged_an.get("rep_performance") or {}
+    audio_row = {
+        "id": "AUDIO",
+        "file_name": up_state["file_name"],
+        "Topic": lbl(merged_an.get("topic", "general_support")),
+        "Sentiment": lbl(merged_an.get("sentiment", "neutral")),
+        "Resolution": lbl(merged_an.get("resolution", "partly_resolved")),
+        "Clarity": float(rp.get("clarity", 4.0) or 4.0),
+        "Helpfulness": float(rp.get("helpfulness", 4.0) or 4.0),
+        "Empathy": float(rp.get("empathy", 4.0) or 4.0),
+        "raw": {"analysis": merged_an},
+    }
+    up_html, up_txt = build_readable_reports(audio_row, transcript_text=edited_tr)
+    stem = Path(up_state["file_name"]).stem
+
+    ud1, ud2, ud3 = st.columns(3)
+    with ud1:
+        st.download_button("📄 Formatted Report (.html)", data=up_html, file_name=f"{stem}_report.html", mime="text/html", use_container_width=True, key="dl_up_html")
+    with ud2:
+        st.download_button("📝 Full Report + Transcript (.txt)", data=up_txt, file_name=f"{stem}_report.txt", mime="text/plain", use_container_width=True, key="dl_up_txt")
+    with ud3:
+        st.download_button("⬇️ Transcript Only (.txt)", data=edited_tr, file_name=f"{stem}_transcript.txt", mime="text/plain", use_container_width=True, key="dl_up_tr_only")
+
+st.markdown('</div>', unsafe_allow_html=True)
+
+# 3. KPI Overview
+try:
+    db.init()
+    raw_done = db.done_calls() or []
+except Exception as exc:
+    raw_done = []
+    st.warning(f"Database status notice: {exc}")
+
+rows = []
+for c in raw_done:
+    a = c.get("analysis") or {}
+    rp = a.get("rep_performance") or {}
+    rows.append({
+        "id": c.get("id"),
+        "file_name": c.get("file_name", ""),
+        "Topic": lbl(a.get("topic", "general_support")),
+        "Sentiment": lbl(a.get("sentiment", "neutral")),
+        "Resolution": lbl(a.get("resolution", "partly_resolved")),
+        "r_raw": str(a.get("resolution", "")).lower(),
+        "s_raw": str(a.get("sentiment", "")).lower(),
+        "Clarity": float(rp.get("clarity", 0) or 0),
+        "Helpfulness": float(rp.get("helpfulness", 0) or 0),
+        "Empathy": float(rp.get("empathy", 0) or 0),
+        "raw": c,
+    })
+
+df = pd.DataFrame(rows)
+tot = len(df)
+res_n = int(df["r_raw"].eq("resolved").sum()) if tot else 0
+res_p = (res_n / tot * 100) if tot else 0.0
+cl_a = float(df["Clarity"].mean()) if tot else 0.0
+em_a = float(df["Empathy"].mean()) if tot else 0.0
+attn_n = int(df["s_raw"].isin(["frustrated", "confused"]).sum()) if tot else 0
+unres_n = tot - res_n
+
+st.markdown('<div class="section-bar">2. Quality &amp; Resolution Overview</div>', unsafe_allow_html=True)
+k1, k2, k3, k4 = st.columns(4)
+with k1:
+    st.markdown(
+        f'<div class="kpi-card"><div class="kpi-label">Analysed Calls</div><div class="kpi-value">{tot} Calls</div>'
+        f'<div class="kpi-meta">{attn_n} priority attention</div>'
+        f'<div class="kpi-desc">Calls with frustrated or confused customer sentiment.</div></div>',
+        unsafe_allow_html=True,
+    )
+with k2:
+    st.markdown(
+        f'<div class="kpi-card"><div class="kpi-label">First-Call Resolution</div><div class="kpi-value">{res_p:.0f}%</div>'
+        f'<div class="kpi-meta">{res_n} of {tot} resolved ({unres_n} open)</div>'
+        f'<div class="kpi-desc">Share of calls resolved during initial support contact.</div></div>',
+        unsafe_allow_html=True,
+    )
+with k3:
+    cl_note = "Below 4.0 target (Coaching)" if cl_a < 4.0 else "Meets >= 4.0 target"
+    st.markdown(
+        f'<div class="kpi-card"><div class="kpi-label">Average Clarity</div><div class="kpi-value">{cl_a:.1f} / 5.0</div>'
+        f'<div class="kpi-meta">{cl_note}</div>'
+        f'<div class="kpi-desc">Average clarity score across evaluated support calls.</div></div>',
+        unsafe_allow_html=True,
+    )
+with k4:
+    em_note = "Below 4.0 target (Tone Check)" if em_a < 4.0 else "Meets >= 4.0 target"
+    st.markdown(
+        f'<div class="kpi-card"><div class="kpi-label">Average Empathy</div><div class="kpi-value">{em_a:.1f} / 5.0</div>'
+        f'<div class="kpi-meta">{em_note}</div>'
+        f'<div class="kpi-desc">Average empathy score across evaluated support calls.</div></div>',
+        unsafe_allow_html=True,
+    )
+
+# 4. Call Logs Table + Full Structured Detail & Export
+st.markdown('<div class="section-bar">3. Call Logs, Structured Breakdown &amp; Report Export</div>', unsafe_allow_html=True)
+
+if df.empty:
+    st.info("No analysed call logs found yet.")
+else:
+    tbl_rows = []
+    for _, r in df.iterrows():
+        s_cls = "chip-alert" if r["s_raw"] in ("frustrated", "confused") else "chip-topic"
+        r_cls = "chip-ok" if r["r_raw"] == "resolved" else "chip-open"
+        tbl_rows.append(
+            f"<tr>"
+            f"<td><strong>#{html.escape(str(r['id']))}</strong></td>"
+            f"<td>{html.escape(str(r['file_name']))}</td>"
+            f"<td><span class='chip chip-topic'>{html.escape(str(r['Topic']))}</span></td>"
+            f"<td><span class='chip {s_cls}'>{html.escape(str(r['Sentiment']))}</span></td>"
+            f"<td><span class='chip {r_cls}'>{html.escape(str(r['Resolution']))}</span></td>"
+            f"<td>{r['Clarity']:.1f} / 5.0</td>"
+            f"<td>{r['Helpfulness']:.1f} / 5.0</td>"
+            f"<td>{r['Empathy']:.1f} / 5.0</td>"
+            f"</tr>"
+        )
+    st.markdown(
+        "<div class='tbl-shell'><table class='studio-tbl'>"
+        "<thead><tr>"
+        "<th>Call ID</th><th>File / Recording</th><th>Topic</th><th>Sentiment</th>"
+        "<th>Resolution</th><th>Clarity</th><th>Helpfulness</th><th>Empathy</th>"
+        "</tr></thead><tbody>"
+        + "".join(tbl_rows)
+        + "</tbody></table></div>",
+        unsafe_allow_html=True,
+    )
+
+    records = df.to_dict("records")
+    chosen = st.selectbox(
+        "Select a call record to inspect full structured analysis and download reports",
+        records,
+        format_func=lambda r: f"Call #{r['id']} — {r['file_name']} ({r['Topic']} | {r['Sentiment']} | {r['Resolution']})",
+    )
+
+    call_obj = chosen["raw"]
+    analysis = call_obj.get("analysis") or {}
+    rep = analysis.get("rep_performance") or {}
+
+    st.markdown('<div class="report-card">', unsafe_allow_html=True)
+    st.markdown(f"### Call #{html.escape(str(chosen['id']))} — {html.escape(str(chosen['file_name']))}")
+
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Topic", chosen["Topic"])
+    m2.metric("Sentiment", chosen["Sentiment"])
+    m3.metric("Resolution", chosen["Resolution"])
+    m4.metric("Clarity / Helpfulness / Empathy", f"{chosen['Clarity']:.1f} / {chosen['Helpfulness']:.1f} / {chosen['Empathy']:.1f}")
+
+    st.markdown("---")
+    summary_txt = clean_display_text(analysis.get("summary") or "Call summary recorded.")
+    query_txt = clean_display_text(analysis.get("customer_query") or "Customer query recorded.")
+    rep_txt = clean_display_text(rep.get("summary") or rep.get("feedback") or "Representative evaluation recorded.")
+    rec_txt = clean_display_text(analysis.get("recurring_pattern") or "Tracked across support QA cycles.")
+
+    st.markdown(f"**Call Summary:** {summary_txt}")
+    st.markdown(f"**Customer Query:** {query_txt}")
+    st.markdown(f"**Support Representative Performance:** {rep_txt}")
+
+    probs = analysis.get("key_problems") or []
+    if probs:
+        st.markdown("**Key Problems:**")
+        for p in probs:
+            st.markdown(f"- **{lbl(p.get('category', 'issue'))}:** {clean_display_text(p.get('description', ''))}")
+
+    imps = analysis.get("improvement_suggestions") or []
+    if imps:
+        st.markdown("**Improvement Suggestions:**")
+        for s in imps:
+            st.markdown(f"- {clean_display_text(s)}")
+
+    st.markdown(f"**Recurring Patterns:** {rec_txt}")
+
+    tr_existing = ""
+    if TRANSCRIPTS_DIR.exists():
+        cand_tr = TRANSCRIPTS_DIR / f"{Path(chosen['file_name']).stem}.txt"
+        if cand_tr.exists():
+            tr_existing = cand_tr.read_text(encoding="utf-8", errors="ignore")
+
+    if tr_existing.strip():
+        with st.expander("View Stored Transcript", expanded=False):
+            st.text(tr_existing.strip())
+
+    html_rep, txt_rep = build_readable_reports(chosen, transcript_text=tr_existing)
+    md_path = REPORTS_DIR / f"call_{chosen['id']}.md"
+    md_content = md_path.read_text(encoding="utf-8") if md_path.exists() else txt_rep
+
+    st.markdown("---")
+    dl1, dl2, dl3 = st.columns(3)
+    with dl1:
+        st.download_button("📄 Download Formatted Report (.html)", data=html_rep, file_name=f"call_{chosen['id']}_report.html", mime="text/html", use_container_width=True, key=f"dl_html_{chosen['id']}")
+    with dl2:
+        st.download_button("📝 Download Clean Text Report (.txt)", data=txt_rep, file_name=f"call_{chosen['id']}_report.txt", mime="text/plain", use_container_width=True, key=f"dl_txt_{chosen['id']}")
+    with dl3:
+        st.download_button("⬇️ Download Markdown Report (.md)", data=md_content, file_name=f"call_{chosen['id']}_report.md", mime="text/markdown", use_container_width=True, key=f"dl_md_{chosen['id']}")
+    st.markdown('</div>', unsafe_allow_html=True)
