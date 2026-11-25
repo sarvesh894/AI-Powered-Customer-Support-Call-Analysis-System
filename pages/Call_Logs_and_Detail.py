@@ -125,6 +125,8 @@ def build_full_report_exports(row: dict, transcript_txt: str):
   h2 {{ font-size: 16px; color: #4c1d95; border-bottom: 1px solid #ede9fe; padding-bottom: 4px; margin-top: 20px; }}
   p, li {{ font-size: 15px; color: #000000; }}
   pre {{ white-space: pre-wrap; background: #faf8ff; border: 1px solid #ddd6fe; border-radius: 10px; padding: 14px; font-family: inherit; font-size: 14px; color: #000000; }}
+
+[data-testid="stIconMaterial"], [data-testid="stSidebarCollapseButton"] *, [data-testid="stSidebarExpandButton"] *, .material-symbols-rounded, .material-icons { font-family: 'Material Symbols Rounded', 'Material Icons' !important; }
 </style>
 </head>
 <body>
@@ -228,6 +230,8 @@ div.stButton > button, div.stDownloadButton > button {{
   font-weight: 700 !important;
   font-size: 0.9rem !important;
 }}
+
+[data-testid="stIconMaterial"], [data-testid="stSidebarCollapseButton"] *, [data-testid="stSidebarExpandButton"] *, .material-symbols-rounded, .material-icons { font-family: 'Material Symbols Rounded', 'Material Icons' !important; }
 </style>
 
 <div class="page-banner">

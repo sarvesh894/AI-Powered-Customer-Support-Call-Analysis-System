@@ -299,6 +299,8 @@ def build_readable_reports(call_row: dict, transcript_text: str = ""):
   h2 {{ font-size: 16px; color: #4c1d95; border-bottom: 1px solid #ede9fe; padding-bottom: 5px; margin-top: 22px; }}
   p, li {{ font-size: 15px; color: #000000; }}
   pre {{ white-space: pre-wrap; background: #f8f7ff; border: 1px solid #ddd6fe; border-radius: 10px; padding: 16px; font-family: inherit; font-size: 14px; color: #000000; }}
+
+[data-testid="stIconMaterial"], [data-testid="stSidebarCollapseButton"] *, [data-testid="stSidebarExpandButton"] *, .material-symbols-rounded, .material-icons { font-family: 'Material Symbols Rounded', 'Material Icons' !important; }
 </style>
 </head>
 <body>
@@ -494,6 +496,8 @@ table.studio-tbl tbody tr:hover {{
 .chip-alert {{ background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }}
 .chip-ok {{ background: #dcfce7; color: #166534; border: 1px solid #86efac; }}
 .chip-open {{ background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }}
+
+[data-testid="stIconMaterial"], [data-testid="stSidebarCollapseButton"] *, [data-testid="stSidebarExpandButton"] *, .material-symbols-rounded, .material-icons { font-family: 'Material Symbols Rounded', 'Material Icons' !important; }
 </style>
 
 <div class="studio-hero">
